@@ -1,0 +1,171 @@
+"""Tool schemas (Anthropic format) + runtime dispatcher."""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Callable
+from typing import Any
+
+from jarvis_jr.tools.calendar import GoogleCalendar
+from jarvis_jr.tools.timer import TimerManager
+
+
+TOOL_SCHEMAS: list[dict[str, Any]] = [
+    {
+        "name": "create_event",
+        "description": (
+            "Create a calendar event on the user's primary calendar. "
+            "Resolve relative times (e.g. 'tomorrow at 3pm') to absolute ISO 8601 "
+            "in the user's local timezone before calling."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string", "description": "Event title"},
+                "start": {
+                    "type": "string",
+                    "description": "ISO 8601 start time, e.g. 2026-05-21T15:00:00-07:00",
+                },
+                "end": {
+                    "type": "string",
+                    "description": (
+                        "ISO 8601 end time. Optional; defaults to 30 minutes after start."
+                    ),
+                },
+                "location": {"type": "string"},
+                "description": {"type": "string"},
+            },
+            "required": ["title", "start"],
+        },
+    },
+    {
+        "name": "list_events",
+        "description": "List calendar events in a time range.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "start": {"type": "string", "description": "ISO 8601 start of range"},
+                "end": {"type": "string", "description": "ISO 8601 end of range"},
+                "max_results": {"type": "integer", "default": 10},
+            },
+            "required": ["start", "end"],
+        },
+    },
+    {
+        "name": "set_timer",
+        "description": (
+            "Set a timer. When the timer goes off, the assistant will speak "
+            "a notification mentioning the label."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "duration_seconds": {"type": "integer"},
+                "label": {"type": "string", "description": "What the timer is for"},
+            },
+            "required": ["duration_seconds", "label"],
+        },
+    },
+]
+
+
+class ToolRegistry:
+    """Dispatch tool calls coming back from the LLM to their Python implementations."""
+
+    def __init__(
+        self,
+        calendar: GoogleCalendar | None,
+        timer_manager: TimerManager,
+    ):
+        self.calendar = calendar
+        self.timer_manager = timer_manager
+        self._handlers: dict[str, Callable[[dict[str, Any]], str]] = {
+            "create_event": self._create_event,
+            "list_events": self._list_events,
+            "set_timer": self._set_timer,
+        }
+
+    @property
+    def schemas(self) -> list[dict[str, Any]]:
+        return TOOL_SCHEMAS
+
+    def describe(self, name: str, args: dict[str, Any]) -> str:
+        """A human-readable fallback proposal for confirmation prompts."""
+        if name == "create_event":
+            return (
+                f"Create event '{args.get('title', '?')}' at {args.get('start', '?')}"
+                + (f" until {args['end']}" if args.get("end") else "")
+                + "."
+            )
+        if name == "list_events":
+            return f"List events from {args.get('start')} to {args.get('end')}."
+        if name == "set_timer":
+            return (
+                f"Set a {args.get('duration_seconds', '?')}s timer for "
+                f"'{args.get('label', '?')}'."
+            )
+        return f"Run {name} with {args}."
+
+    def dispatch(self, name: str, args: dict[str, Any]) -> str:
+        handler = self._handlers.get(name)
+        if handler is None:
+            return f"ERROR: unknown tool '{name}'."
+        try:
+            return handler(args)
+        except Exception as e:  # surface errors back to the LLM
+            return f"ERROR: {type(e).__name__}: {e}"
+
+    # ---- handlers ----------------------------------------------------------
+
+    def _create_event(self, args: dict[str, Any]) -> str:
+        if self.calendar is None:
+            return "ERROR: calendar not configured."
+        ev = self.calendar.create_event(
+            title=args["title"],
+            start=args["start"],
+            end=args.get("end"),
+            location=args.get("location"),
+            description=args.get("description"),
+        )
+        return json.dumps(
+            {
+                "id": ev.get("id"),
+                "summary": ev.get("summary"),
+                "start": ev.get("start"),
+                "end": ev.get("end"),
+                "htmlLink": ev.get("htmlLink"),
+            }
+        )
+
+    def _list_events(self, args: dict[str, Any]) -> str:
+        if self.calendar is None:
+            return "ERROR: calendar not configured."
+        events = self.calendar.list_events(
+            start=args["start"],
+            end=args["end"],
+            max_results=args.get("max_results", 10),
+        )
+        slim = [
+            {
+                "id": e.get("id"),
+                "summary": e.get("summary"),
+                "start": e.get("start"),
+                "end": e.get("end"),
+                "location": e.get("location"),
+            }
+            for e in events
+        ]
+        return json.dumps(slim) if slim else "No events in range."
+
+    def _set_timer(self, args: dict[str, Any]) -> str:
+        handle = self.timer_manager.set_timer(
+            duration_seconds=int(args["duration_seconds"]),
+            label=args["label"],
+        )
+        return json.dumps(
+            {
+                "id": handle.id,
+                "label": handle.label,
+                "duration_seconds": handle.duration_seconds,
+            }
+        )
