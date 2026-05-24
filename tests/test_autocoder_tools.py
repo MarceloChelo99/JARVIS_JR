@@ -1,6 +1,6 @@
 import pytest
 from pathlib import Path
-from src.jarvis_jr.autocoder.tools import CoderTools
+from jarvis_jr.autocoder.tools import CoderTools
 
 @pytest.fixture
 def coder_tools(tmp_path):
