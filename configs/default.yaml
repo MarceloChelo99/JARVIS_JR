@@ -1,0 +1,47 @@
+audio:
+  sample_rate: 16000
+  channels: 1
+  input_device: null
+  output_device: null
+
+camera:
+  name_contains: "iPhone"
+  width: 1280
+  height: 720
+  jpeg_quality: 85
+
+stt:
+  model: "base.en"
+  compute_type: "int8"
+  vad_filter: true
+
+tts:
+  voice: "en_US-amy-medium"
+  speed: 1.0
+
+llm:
+  # Active provider + model. Switch by editing these two lines.
+  provider: "google"               # "anthropic" | "google" | "ollama"
+  model: "gemini-2.5-flash"        # provider-specific ID
+  max_tokens: 1024
+  system_prompt_path: null
+
+  # Reference defaults for each provider — copy into the active fields above
+  # when switching.
+  anthropic:
+    model: "claude-sonnet-4-6"
+  google:
+    model: "gemini-2.5-flash"
+  ollama:
+    model: "qwen3.5:9b"
+    base_url: "http://localhost:11434"
+
+confirmation:
+  require_for: ["create_event", "delete_event", "update_event"]
+  yes_words: ["yes", "yeah", "yep", "yup", "do it", "go ahead", "confirm"]
+  no_words: ["no", "nope", "cancel", "stop", "wait", "don't"]
+
+calendar:
+  default_calendar_id: "primary"
+  default_duration_minutes: 30
+  default_timezone: null
