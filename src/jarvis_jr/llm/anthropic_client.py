@@ -27,6 +27,7 @@ class AnthropicClient:
         confirmer: Confirmer | None = None,
         system_prompt: str | None = None,
         jpeg_quality: int = 85,
+        max_iterations: int | None = None,
     ):
         self._client = Anthropic()
         self.registry = registry
@@ -36,6 +37,7 @@ class AnthropicClient:
         self.confirmer = confirmer or stdin_confirmer
         self.system_prompt = system_prompt or build_system_prompt()
         self.jpeg_quality = jpeg_quality
+        self.max_iterations = max_iterations
         self.messages: list[dict[str, Any]] = []
 
     def reset(self) -> None:
@@ -45,7 +47,14 @@ class AnthropicClient:
         """Send one user turn and return the final assistant text after any tool calls."""
         self.messages.append({"role": "user", "content": self._user_blocks(user_text, image)})
 
+        iteration = 0
         while True:
+            iteration += 1
+            if self.max_iterations is not None and iteration > self.max_iterations:
+                return (
+                    f"[autocoder] max_iterations ({self.max_iterations}) reached "
+                    "without the model finishing. Stopping."
+                )
             response = self._client.messages.create(
                 model=self.model,
                 max_tokens=self.max_tokens,
