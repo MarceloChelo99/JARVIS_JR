@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import time
 from collections.abc import Iterable
 from typing import Any
 
@@ -12,6 +14,24 @@ from google.genai import types
 
 from jarvis_jr.confirm import Confirmer
 from jarvis_jr.tools.registry import ToolRegistry
+
+
+# Retry tuning for 429 RESOURCE_EXHAUSTED. The free tier is 5 RPM; bursts will
+# trip it. Gemini's error includes a `retryDelay: "Ns"` hint we honor.
+_MAX_429_RETRIES = 4
+_DEFAULT_429_BACKOFF_S = 8.0
+_MAX_429_BACKOFF_S = 65.0
+_RETRY_DELAY_RE = re.compile(r"retryDelay['\"]?\s*:\s*['\"]?(\d+(?:\.\d+)?)s", re.IGNORECASE)
+
+
+def _parse_retry_delay_seconds(err_str: str) -> float | None:
+    m = _RETRY_DELAY_RE.search(err_str)
+    return float(m.group(1)) + 0.5 if m else None  # small buffer past the hinted wait
+
+
+def _is_rate_limit_error(exc: BaseException) -> bool:
+    msg = str(exc)
+    return "RESOURCE_EXHAUSTED" in msg or "429" in msg
 
 
 def _to_gemini_tools(schemas: list[dict[str, Any]]) -> list[types.Tool]:
@@ -86,9 +106,7 @@ class GeminiClient:
                     f"[autocoder] max_iterations ({self.max_iterations}) reached "
                     "without the model finishing. Stopping."
                 )
-            response = self._client.models.generate_content(
-                model=self.model, contents=self.history, config=config
-            )
+            response = self._generate_with_retry(config)
             candidate = response.candidates[0]
             self.history.append(candidate.content)
 
@@ -126,6 +144,30 @@ class GeminiClient:
                 )
 
             self.history.append(types.Content(role="user", parts=tool_response_parts))
+
+    def _generate_with_retry(self, config: types.GenerateContentConfig):
+        """Call models.generate_content with 429-aware exponential backoff."""
+        backoff = _DEFAULT_429_BACKOFF_S
+        last_exc: BaseException | None = None
+        for attempt in range(_MAX_429_RETRIES + 1):
+            try:
+                return self._client.models.generate_content(
+                    model=self.model, contents=self.history, config=config
+                )
+            except Exception as e:  # noqa: BLE001
+                if not _is_rate_limit_error(e) or attempt == _MAX_429_RETRIES:
+                    raise
+                last_exc = e
+                hinted = _parse_retry_delay_seconds(str(e))
+                wait = min(_MAX_429_BACKOFF_S, hinted if hinted is not None else backoff)
+                print(
+                    f"[gemini] rate-limited (attempt {attempt + 1}/{_MAX_429_RETRIES}); "
+                    f"sleeping {wait:.0f}s before retry."
+                )
+                time.sleep(wait)
+                backoff *= 2
+        # Unreachable due to the raise above, but satisfies the type checker.
+        raise RuntimeError("Gemini retry loop exited without returning") from last_exc
 
 
 def _as_response_dict(raw: str) -> dict[str, Any]:
