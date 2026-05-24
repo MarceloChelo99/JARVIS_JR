@@ -79,17 +79,36 @@ def run_autocoder(cfg: RunConfig) -> RunResult:
     print(f"[autocoder] spec:\n  {cfg.spec}\n")
 
     final_message = ""
-    success = False
+    crashed = False
+    hit_cap = False
     try:
         final_message = llm.submit(cfg.spec)
-        success = not final_message.startswith("[autocoder] max_iterations")
+        hit_cap = final_message.startswith("[autocoder] max_iterations")
     except Exception as e:  # noqa: BLE001
         final_message = f"FAILED with exception: {type(e).__name__}: {e}"
-        success = False
+        crashed = True
 
     finished_at = datetime.now()
     commits = _commits_since(cfg.repo_root, head_before)
     iterations = _count_lines(turns_path)
+
+    # Outcome semantics:
+    # - Any new commits on the run branch = the agent produced something.
+    # - "success" means it shipped at least one commit AND the loop ended cleanly.
+    # - "partial" means it shipped commits but then crashed or hit the cap.
+    # - "fail" means no commits.
+    success = bool(commits) and not (crashed or hit_cap)
+    if commits and (crashed or hit_cap):
+        outcome_label = "partial (commits shipped, loop ended on " + (
+            "crash" if crashed else "max_iterations") + ")"
+    elif commits:
+        outcome_label = "✓ success"
+    elif crashed:
+        outcome_label = "✗ crashed before any commit"
+    elif hit_cap:
+        outcome_label = "✗ hit max_iterations without committing"
+    else:
+        outcome_label = "✗ stopped without committing"
 
     summary_path.write_text(
         _render_summary(
@@ -106,7 +125,7 @@ def run_autocoder(cfg: RunConfig) -> RunResult:
         encoding="utf-8",
     )
 
-    print(f"\n[autocoder] {'✓ success' if success else '✗ stopped'}; {iterations} tool calls; "
+    print(f"\n[autocoder] {outcome_label}; {iterations} tool calls; "
           f"{len(commits)} commits on {branch}")
     print(f"[autocoder] summary written to {summary_path}")
     print(f"[autocoder] inspect & ship: git log {branch} ; gh pr create --head {branch}")
