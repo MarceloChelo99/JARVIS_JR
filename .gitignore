@@ -22,6 +22,9 @@ venv/
 credentials/*
 !credentials/.gitkeep
 
+# Autocoder per-run logs
+notes/autocoder/
+
 # Caches
 .cache/
 .pytest_cache/

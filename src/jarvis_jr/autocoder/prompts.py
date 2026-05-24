@@ -25,6 +25,7 @@ Constraints:
 - Don't push to remote; the human will review the branch and open the PR.
 - Never delete files unless the spec explicitly requires it.
 - If you hit something you can't resolve in a few attempts, stop and explain what's blocking you in the final message — don't keep flailing.
+- Python imports: the package is installed as `jarvis_jr`. Use `from jarvis_jr.X import Y`, NEVER `from src.jarvis_jr.X import Y`. The `src/` prefix only works by accident under pytest and breaks other tooling.
 
 You're on a fresh git branch dedicated to this run. Commit freely; the branch is disposable if the work goes sideways.
 """

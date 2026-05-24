@@ -21,6 +21,12 @@ def run_autocoder(cfg: RunConfig) -> RunResult:
     run_id = f"{started_at.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
     branch = f"{cfg.branch_prefix}/{run_id}"
 
+    # Verify clean working tree FIRST — before creating any files that would
+    # dirty it themselves (notes/autocoder/<run_id>/...).
+    _require_clean_worktree(cfg.repo_root)
+    head_before = _git(cfg.repo_root, "rev-parse", "HEAD").strip()
+    _git(cfg.repo_root, "checkout", "-b", branch)
+
     logs_root = cfg.logs_root or (cfg.repo_root / "notes" / "autocoder")
     log_dir = logs_root / run_id
     log_dir.mkdir(parents=True, exist_ok=True)
@@ -32,11 +38,6 @@ def run_autocoder(cfg: RunConfig) -> RunResult:
     print(f"[autocoder] run_id={run_id}")
     print(f"[autocoder] branch={branch}")
     print(f"[autocoder] logs={log_dir}")
-
-    # Verify clean working tree before branching off; refuse to start otherwise.
-    _require_clean_worktree(cfg.repo_root)
-    head_before = _git(cfg.repo_root, "rev-parse", "HEAD").strip()
-    _git(cfg.repo_root, "checkout", "-b", branch)
 
     def log_call(name: str, args: dict, result: str) -> None:
         with turns_path.open("a", encoding="utf-8") as f:
@@ -78,17 +79,36 @@ def run_autocoder(cfg: RunConfig) -> RunResult:
     print(f"[autocoder] spec:\n  {cfg.spec}\n")
 
     final_message = ""
-    success = False
+    crashed = False
+    hit_cap = False
     try:
         final_message = llm.submit(cfg.spec)
-        success = not final_message.startswith("[autocoder] max_iterations")
+        hit_cap = final_message.startswith("[autocoder] max_iterations")
     except Exception as e:  # noqa: BLE001
         final_message = f"FAILED with exception: {type(e).__name__}: {e}"
-        success = False
+        crashed = True
 
     finished_at = datetime.now()
     commits = _commits_since(cfg.repo_root, head_before)
     iterations = _count_lines(turns_path)
+
+    # Outcome semantics:
+    # - Any new commits on the run branch = the agent produced something.
+    # - "success" means it shipped at least one commit AND the loop ended cleanly.
+    # - "partial" means it shipped commits but then crashed or hit the cap.
+    # - "fail" means no commits.
+    success = bool(commits) and not (crashed or hit_cap)
+    if commits and (crashed or hit_cap):
+        outcome_label = "partial (commits shipped, loop ended on " + (
+            "crash" if crashed else "max_iterations") + ")"
+    elif commits:
+        outcome_label = "✓ success"
+    elif crashed:
+        outcome_label = "✗ crashed before any commit"
+    elif hit_cap:
+        outcome_label = "✗ hit max_iterations without committing"
+    else:
+        outcome_label = "✗ stopped without committing"
 
     summary_path.write_text(
         _render_summary(
@@ -105,7 +125,7 @@ def run_autocoder(cfg: RunConfig) -> RunResult:
         encoding="utf-8",
     )
 
-    print(f"\n[autocoder] {'✓ success' if success else '✗ stopped'}; {iterations} tool calls; "
+    print(f"\n[autocoder] {outcome_label}; {iterations} tool calls; "
           f"{len(commits)} commits on {branch}")
     print(f"[autocoder] summary written to {summary_path}")
     print(f"[autocoder] inspect & ship: git log {branch} ; gh pr create --head {branch}")
