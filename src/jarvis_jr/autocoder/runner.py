@@ -21,6 +21,12 @@ def run_autocoder(cfg: RunConfig) -> RunResult:
     run_id = f"{started_at.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
     branch = f"{cfg.branch_prefix}/{run_id}"
 
+    # Verify clean working tree FIRST — before creating any files that would
+    # dirty it themselves (notes/autocoder/<run_id>/...).
+    _require_clean_worktree(cfg.repo_root)
+    head_before = _git(cfg.repo_root, "rev-parse", "HEAD").strip()
+    _git(cfg.repo_root, "checkout", "-b", branch)
+
     logs_root = cfg.logs_root or (cfg.repo_root / "notes" / "autocoder")
     log_dir = logs_root / run_id
     log_dir.mkdir(parents=True, exist_ok=True)
@@ -32,11 +38,6 @@ def run_autocoder(cfg: RunConfig) -> RunResult:
     print(f"[autocoder] run_id={run_id}")
     print(f"[autocoder] branch={branch}")
     print(f"[autocoder] logs={log_dir}")
-
-    # Verify clean working tree before branching off; refuse to start otherwise.
-    _require_clean_worktree(cfg.repo_root)
-    head_before = _git(cfg.repo_root, "rev-parse", "HEAD").strip()
-    _git(cfg.repo_root, "checkout", "-b", branch)
 
     def log_call(name: str, args: dict, result: str) -> None:
         with turns_path.open("a", encoding="utf-8") as f:
