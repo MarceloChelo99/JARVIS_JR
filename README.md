@@ -28,7 +28,14 @@ The build proceeds in pinned milestones. Current status:
 - [x] **M4** — text-only LLM with calendar + timer tools, stdin confirmation
       for sensitive actions.
 - [x] **M5** — full voice assistant: `Session` orchestrator + voice
-      confirmation loop + `scripts/run_jarvis.py`. Awaits live user verification.
+      confirmation loop + `scripts/run_jarvis.py`.
+- [x] **M6** — autocoder MVP: single-agent autonomous coding loop in
+      `src/jarvis_jr/autocoder/`, runs via `scripts/autocoder.py`, defaults to
+      Gemini Flash for $0 variable cost, sandboxed to the repo, commits onto a
+      fresh `autocoder/<run-id>` branch.
+- [ ] M7 — multi-agent (planner + coder + reviewer).
+- [ ] M8 — JARVIS voice integration: tools to dispatch + query autocoder runs.
+- [ ] M9 — always-on launchd service.
 
 ## Verify M1
 
@@ -100,6 +107,27 @@ SPACE → "yes"), and speaks the reply.
 
 Per-turn timing is printed (`stt ▍ms  capture ▍ms  llm ▍ms  tts ▍ms`) so
 you can see where any latency is coming from.
+
+## Verify M6 (autocoder)
+
+```bash
+# Make sure your worktree is clean first.
+uv run python scripts/autocoder.py "Add a one-line ASCII banner to scripts/run_jarvis.py that prints 'JARVIS Jr.' at startup"
+```
+
+The autocoder will:
+1. Create a fresh `autocoder/<run-id>` branch off your current HEAD.
+2. Read/edit files + run bash commands until the spec is satisfied or
+   `--max-iterations` (default 30) is hit.
+3. Commit its work along the way.
+4. Write a markdown summary to `notes/autocoder/<run-id>/summary.md`.
+
+Inspect the diff with `git log autocoder/<run-id>`; ship via `gh pr create`;
+discard with `git checkout main && git branch -D autocoder/<run-id>`.
+
+Defaults to Gemini 2.5 Flash (free tier). Switch backends with
+`--provider ollama` (local Qwen, fully free) or `--provider anthropic` (paid,
+best quality on hard specs).
 
 ## LLM backends
 
