@@ -38,6 +38,7 @@ class GeminiClient:
         system_prompt: str,
         require_confirmation_for: Iterable[str] = (),
         max_tokens: int = 1024,
+        max_iterations: int | None = None,
         api_key: str | None = None,
     ):
         key = api_key or os.environ.get("GOOGLE_API_KEY")
@@ -53,6 +54,7 @@ class GeminiClient:
         self.system_prompt = system_prompt
         self.require_confirmation_for = set(require_confirmation_for)
         self.max_tokens = max_tokens
+        self.max_iterations = max_iterations
         self._gemini_tools = _to_gemini_tools(tools.schemas)
         self.history: list[types.Content] = []
 
@@ -76,7 +78,14 @@ class GeminiClient:
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
         )
 
+        iteration = 0
         while True:
+            iteration += 1
+            if self.max_iterations is not None and iteration > self.max_iterations:
+                return (
+                    f"[autocoder] max_iterations ({self.max_iterations}) reached "
+                    "without the model finishing. Stopping."
+                )
             response = self._client.models.generate_content(
                 model=self.model, contents=self.history, config=config
             )

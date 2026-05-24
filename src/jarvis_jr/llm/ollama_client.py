@@ -57,6 +57,7 @@ class OllamaClient:
         system_prompt: str,
         require_confirmation_for: Iterable[str] = (),
         max_tokens: int = 1024,
+        max_iterations: int | None = None,
         base_url: str = "http://localhost:11434",
     ):
         self.base_url = base_url.rstrip("/")
@@ -67,6 +68,7 @@ class OllamaClient:
         self.system_prompt = system_prompt
         self.require_confirmation_for = set(require_confirmation_for)
         self.max_tokens = max_tokens
+        self.max_iterations = max_iterations
         self._openai_tools = _to_openai_tools(tools.schemas)
         self.messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
 
@@ -100,7 +102,14 @@ class OllamaClient:
             content = user_text
         self.messages.append({"role": "user", "content": content})
 
+        iteration = 0
         while True:
+            iteration += 1
+            if self.max_iterations is not None and iteration > self.max_iterations:
+                return (
+                    f"[autocoder] max_iterations ({self.max_iterations}) reached "
+                    "without the model finishing. Stopping."
+                )
             response = self._client.chat.completions.create(
                 model=self.model,
                 messages=self.messages,
