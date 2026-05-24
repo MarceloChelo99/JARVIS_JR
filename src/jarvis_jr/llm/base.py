@@ -59,6 +59,7 @@ def build_llm_client(
     system_prompt: str,
     require_confirmation_for: Iterable[str] = (),
     max_tokens: int = 1024,
+    max_iterations: int | None = None,
     **provider_kwargs: Any,
 ) -> LLMClient:
     """Construct an LLMClient by provider name.
@@ -84,6 +85,7 @@ def build_llm_client(
             require_confirmation_for=require_confirmation_for,
             confirmer=confirmer,
             system_prompt=system_prompt,
+            max_iterations=max_iterations,
         )
         return _AnthropicAdapter(wrapped)
 
@@ -97,6 +99,7 @@ def build_llm_client(
             system_prompt=system_prompt,
             require_confirmation_for=require_confirmation_for,
             max_tokens=max_tokens,
+            max_iterations=max_iterations,
         )
 
     if provider == "ollama":
@@ -109,6 +112,7 @@ def build_llm_client(
             system_prompt=system_prompt,
             require_confirmation_for=require_confirmation_for,
             max_tokens=max_tokens,
+            max_iterations=max_iterations,
             base_url=provider_kwargs.get("base_url", "http://localhost:11434"),
         )
 
