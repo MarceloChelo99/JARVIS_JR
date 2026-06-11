@@ -7,7 +7,9 @@ from collections.abc import Callable
 from typing import Any
 
 from jarvis_jr.tools.calendar import GoogleCalendar
+from jarvis_jr.tools.mcp_client import MCPManager
 from jarvis_jr.tools.timer import TimerManager
+from jarvis_jr.tools.web import WebTools
 
 
 TOOL_SCHEMAS: list[dict[str, Any]] = [
@@ -66,6 +68,37 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
             "required": ["duration_seconds", "label"],
         },
     },
+    {
+        "name": "web_search",
+        "description": (
+            "Search the web (DuckDuckGo). Returns a JSON list of results with "
+            "title, url, and snippet. Use for current events, facts you're "
+            "unsure about, prices, weather, anything after your training data. "
+            "Follow up with fetch_page on a result URL if the snippets aren't enough."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Search query"},
+                "max_results": {"type": "integer", "default": 5},
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "fetch_page",
+        "description": (
+            "Fetch a web page and return its readable text content (truncated). "
+            "Use after web_search when you need more than the snippet."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "Full URL to fetch"},
+            },
+            "required": ["url"],
+        },
+    },
 ]
 
 
@@ -76,17 +109,25 @@ class ToolRegistry:
         self,
         calendar: GoogleCalendar | None,
         timer_manager: TimerManager,
+        web: WebTools | None = None,
+        mcp: MCPManager | None = None,
     ):
         self.calendar = calendar
         self.timer_manager = timer_manager
+        self.web = web if web is not None else WebTools()
+        self.mcp = mcp
         self._handlers: dict[str, Callable[[dict[str, Any]], str]] = {
             "create_event": self._create_event,
             "list_events": self._list_events,
             "set_timer": self._set_timer,
+            "web_search": self._web_search,
+            "fetch_page": self._fetch_page,
         }
 
     @property
     def schemas(self) -> list[dict[str, Any]]:
+        if self.mcp is not None and self.mcp.schemas:
+            return TOOL_SCHEMAS + self.mcp.schemas
         return TOOL_SCHEMAS
 
     def describe(self, name: str, args: dict[str, Any]) -> str:
@@ -104,11 +145,20 @@ class ToolRegistry:
                 f"Set a {args.get('duration_seconds', '?')}s timer for "
                 f"'{args.get('label', '?')}'."
             )
+        if name == "web_search":
+            return f"Search the web for '{args.get('query', '?')}'."
+        if name == "fetch_page":
+            return f"Fetch and read {args.get('url', '?')}."
         return f"Run {name} with {args}."
 
     def dispatch(self, name: str, args: dict[str, Any]) -> str:
         handler = self._handlers.get(name)
         if handler is None:
+            if self.mcp is not None and self.mcp.owns(name):
+                try:
+                    return self.mcp.call(name, args)
+                except Exception as e:
+                    return f"ERROR: {type(e).__name__}: {e}"
             return f"ERROR: unknown tool '{name}'."
         try:
             return handler(args)
@@ -156,6 +206,12 @@ class ToolRegistry:
             for e in events
         ]
         return json.dumps(slim) if slim else "No events in range."
+
+    def _web_search(self, args: dict[str, Any]) -> str:
+        return self.web.search(args["query"], args.get("max_results"))
+
+    def _fetch_page(self, args: dict[str, Any]) -> str:
+        return self.web.fetch_page(args["url"])
 
     def _set_timer(self, args: dict[str, Any]) -> str:
         handle = self.timer_manager.set_timer(

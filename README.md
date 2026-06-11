@@ -152,22 +152,29 @@ Free tier at aistudio.google.com. Vision + tools, generous limits.
 Runs the model on your Mac (later: Jetson). Slower than cloud, fully private,
 no key required.
 
-1. `brew install ollama` (or download from https://ollama.com/download)
+1. `brew install ollama` (or download from https://ollama.com/download).
+   **Needs Ollama ≥ 0.20.2** for the gemma4 tool-call fix — `brew upgrade ollama`
+   if you installed earlier.
 2. In another terminal: `ollama serve`
-3. `ollama pull qwen3.5:9b`  (~6.6GB; multimodal — vision + tool calling)
+3. `ollama pull gemma4:12b`  (~7.6GB; vision + tools + thinking, 256K context)
 4. In `configs/default.yaml`:
    ```yaml
    llm:
      provider: "ollama"
-     model: "qwen3.5:9b"
+     model: "gemma4:12b"
    ```
 
-Other working options: `qwen3-vl:8b` (6.1GB, same size class) or `qwen3.5:4b`
-(3.4GB, smaller/faster). Larger tags (`qwen3.5:27b` and up) **need more than
-24GB of RAM in practice** — the file on disk is ~17GB but inference
-context + KV cache pushes it past available memory on a 24GB Mac, causing
-hard swap thrash. Don't fall back to `qwen2.5vl` — it has vision but no
-tool support.
+Other working options: `qwen3.5:9b` (6.6GB, vision + tools), `qwen3-vl:8b`
+(6.1GB), or `qwen3.5:4b` (3.4GB, smaller/faster). Larger tags (`gemma4:26b`,
+`qwen3.5:27b` and up) **need more than 24GB of RAM in practice** — the file on
+disk is ~17-18GB but inference context + KV cache pushes it past available
+memory on a 24GB Mac, causing hard swap thrash. Don't fall back to `qwen2.5vl`
+or `gemma3` — they have vision but no tool support.
+
+Note: gemma4 is a thinking model. The client strips its
+`<|channel>thought ... <channel|>` blocks before TTS, and `max_tokens` is set
+to 2048 since reasoning tokens count against the cap. Thinking adds latency
+per turn; if it's too slow for voice use, qwen3.5:9b is the faster fallback.
 
 Or just run the interactive helper:
 ```bash

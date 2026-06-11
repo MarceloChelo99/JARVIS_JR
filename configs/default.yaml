@@ -6,9 +6,14 @@ audio:
 
 camera:
   name_contains: "iPhone"
-  width: 1280
-  height: 720
-  jpeg_quality: 85
+  width: 640          # keep small — vision prefill on local models is the latency killer
+  height: 360
+  jpeg_quality: 80
+  # When to attach the camera frame to the LLM request:
+  #   "auto"   — only when the question sounds visual ("what is this", "read that sign")
+  #   "always" — every turn (old behavior)
+  #   "never"  — text-only
+  attach_policy: "auto"
 
 stt:
   model: "base.en"
@@ -21,9 +26,9 @@ tts:
 
 llm:
   # Active provider + model. Switch by editing these two lines.
-  provider: "google"               # "anthropic" | "google" | "ollama"
-  model: "gemini-2.5-flash"        # provider-specific ID
-  max_tokens: 1024
+  provider: "ollama"                     # "anthropic" | "google" | "ollama"
+  model: "google/gemma-4-26b-a4b-qat"    # provider-specific ID
+  max_tokens: 2048   # headroom for thinking models (e.g. gemma4) whose reasoning counts against the cap
   system_prompt_path: null
 
   # Reference defaults for each provider — copy into the active fields above
@@ -33,8 +38,25 @@ llm:
   google:
     model: "gemini-2.5-flash"
   ollama:
-    model: "qwen3.5:9b"
-    base_url: "http://localhost:11434"
+    # Works with any OpenAI-compatible local server (Ollama, LM Studio).
+    # Ollama:    model "gemma4:12b", base_url http://localhost:11434 (needs recent Ollama)
+    # LM Studio: model "google/gemma-4-12b" (match the ID shown in LM Studio),
+    #            base_url http://localhost:1234, server started in the Developer tab
+    model: "google/gemma-4-26b-a4b-qat"   # MoE: 26B total / ~4B active — faster than dense 12b, better quality
+    base_url: "http://192.168.1.179:1234"
+
+# MCP (Model Context Protocol) servers. Each server's tools are auto-discovered
+# and exposed to the LLM as "<name>_<tool>". Most published servers run via
+# npx (Node) or uvx (Python) — they're downloaded on first launch.
+# Add write-capable tools to confirmation.require_for below!
+mcp:
+  call_timeout_s: 30.0
+  servers: []
+  # Example — read/write files in a sandboxed folder:
+  # servers:
+  #   - name: "files"
+  #     command: "npx"
+  #     args: ["-y", "@modelcontextprotocol/server-filesystem", "/Users/marcelocastellanos/JarvisSandbox"]
 
 confirmation:
   require_for: ["create_event", "delete_event", "update_event"]

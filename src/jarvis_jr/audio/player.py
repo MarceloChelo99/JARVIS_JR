@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import time
 from collections.abc import Callable, Iterator
 
 import numpy as np
@@ -23,12 +24,21 @@ class AudioPlayer:
 
     def __init__(self, output_device: int | str | None = None):
         self.output_device = output_device
+        self._stream: sd.OutputStream | None = None
+        self._stream_sr: int | None = None
 
     # Pad each utterance with this much silence so PortAudio's tail-replay
     # behavior on macOS doesn't echo the last syllable ("ready" → "ready-dy-dy").
     TAIL_SILENCE_SECONDS = 0.2
 
     def play(self, wav_bytes: bytes) -> None:
+        """Play one utterance through a persistent OutputStream.
+
+        macOS CoreAudio (AUHAL) intermittently refuses to *open* an output
+        stream when output streams are opened/closed every turn alongside the
+        recorder's input streams (PaErrorCode -9986). Keeping one stream open
+        for the session sidesteps the churn; on error we reopen once.
+        """
         data, samplerate = sf.read(io.BytesIO(wav_bytes), dtype="float32", always_2d=False)
         if data.ndim > 1:
             data = data.mean(axis=1)
@@ -37,17 +47,42 @@ class AudioPlayer:
             tail = np.zeros(int(self.TAIL_SILENCE_SECONDS * samplerate), dtype="float32")
             data = np.concatenate([data, tail])
 
-        # Explicit OutputStream so we control draining. `with stream:` calls
-        # stop() (which blocks until the buffer is drained) and then close()
-        # on exit — no chance of the device looping the tail.
+        try:
+            self._ensure_stream(samplerate).write(data)
+        except sd.PortAudioError:
+            # Device changed (headphones, display sleep) or CoreAudio hiccup:
+            # tear down, let CoreAudio settle, re-enumerate devices, retry once.
+            self.close()
+            time.sleep(0.3)
+            sd._terminate()
+            sd._initialize()
+            self._ensure_stream(samplerate).write(data)
+
+    def _ensure_stream(self, samplerate: int) -> sd.OutputStream:
+        if self._stream is not None and self._stream_sr == samplerate:
+            return self._stream
+        self.close()
         stream = sd.OutputStream(
             samplerate=samplerate,
             channels=1,
             dtype="float32",
             device=self.output_device,
         )
-        with stream:
-            stream.write(data)
+        stream.start()
+        self._stream = stream
+        self._stream_sr = samplerate
+        return stream
+
+    def close(self) -> None:
+        """Stop and close the persistent stream (drains buffered audio first)."""
+        if self._stream is not None:
+            try:
+                self._stream.stop()
+                self._stream.close()
+            except Exception:
+                pass
+            self._stream = None
+            self._stream_sr = None
 
     def play_stream(
         self,
