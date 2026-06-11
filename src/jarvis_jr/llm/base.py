@@ -114,6 +114,7 @@ def build_llm_client(
             max_tokens=max_tokens,
             max_iterations=max_iterations,
             base_url=provider_kwargs.get("base_url", "http://localhost:11434"),
+            api_key=provider_kwargs.get("api_key"),
         )
 
     raise ValueError(f"Unknown LLM provider: {provider!r}")
