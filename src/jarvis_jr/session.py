@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import threading
 import time
 import traceback
@@ -19,10 +20,31 @@ from jarvis_jr.llm.prompts import build_system_prompt
 from jarvis_jr.settings import Settings, load_settings
 from jarvis_jr.stt.whisper import WhisperSTT
 from jarvis_jr.tools.calendar import CalendarError, GoogleCalendar
+from jarvis_jr.tools.mcp_client import MCPManager
 from jarvis_jr.tools.registry import ToolRegistry
 from jarvis_jr.tools.timer import TimerManager
 from jarvis_jr.tts.piper import PiperTTS
 from jarvis_jr.types import Turn
+
+
+# Words/phrases that suggest the user is asking about what they're seeing.
+# Vision prefill is the dominant latency cost on local models, so we only
+# attach the camera frame when the question sounds visual (attach_policy=auto).
+_VISION_PHRASES = (
+    "what is this", "what's this", "what is that", "what's that",
+    "what am i looking", "what am i holding", "what do you see",
+    "can you see", "in front of me", "on the screen", "on my screen",
+    "this thing", "that thing", "over there", "right here",
+)
+_VISION_WORDS = re.compile(
+    r"\b(see|look|looking|picture|image|photo|camera|color|colour|read|sign|"
+    r"label|text|screen|wearing|holding|object|describe)\b"
+)
+
+
+def _looks_visual(text: str) -> bool:
+    t = text.lower()
+    return any(p in t for p in _VISION_PHRASES) or bool(_VISION_WORDS.search(t))
 
 
 @dataclass
@@ -71,12 +93,16 @@ class Session:
         )
         self.player = AudioPlayer(output_device=self.settings.audio.output_device)
 
-        print(f"[session] opening camera (matching {self.settings.camera.name_contains!r})…")
-        self.camera: Camera = open_camera(
-            name_contains=self.settings.camera.name_contains,
-            width=self.settings.camera.width,
-            height=self.settings.camera.height,
-        )
+        self.camera: Camera | None = None
+        if self.settings.camera.attach_policy != "never":
+            print(f"[session] opening camera (matching {self.settings.camera.name_contains!r})…")
+            self.camera = open_camera(
+                name_contains=self.settings.camera.name_contains,
+                width=self.settings.camera.width,
+                height=self.settings.camera.height,
+            )
+        else:
+            print("[session] vision disabled (attach_policy=never); camera not opened.")
 
         self.calendar: GoogleCalendar | None = None
         try:
@@ -90,10 +116,21 @@ class Session:
             print(f"[session] {e}")
             print("[session] Continuing without calendar tools.")
 
+        self.mcp: MCPManager | None = None
+        if self.settings.mcp.servers:
+            print(f"[session] starting {len(self.settings.mcp.servers)} MCP server(s)…")
+            self.mcp = MCPManager(
+                servers=self.settings.mcp.servers,
+                call_timeout_s=self.settings.mcp.call_timeout_s,
+            )
+            self.mcp.start()
+
         self._speak_lock = threading.Lock()
         self._last_ttfa: float | None = None
         self.timer_manager = TimerManager(on_fire=self.speak)
-        self.registry = ToolRegistry(calendar=self.calendar, timer_manager=self.timer_manager)
+        self.registry = ToolRegistry(
+            calendar=self.calendar, timer_manager=self.timer_manager, mcp=self.mcp
+        )
 
         self.confirmer = VoiceConfirmer(
             speak=self.speak,
@@ -155,12 +192,16 @@ class Session:
         t0 = time.perf_counter()
         frame_image: np.ndarray | None = None
         jpeg_bytes: bytes | None = None
-        try:
-            frame = self.camera.grab()
-            frame_image = frame.image
-            jpeg_bytes = self._encode_jpeg(frame.image)
-        except Exception as e:
-            print(f"[session] camera unavailable for this turn ({e}); continuing without image.")
+        if self.camera is not None and self._should_attach_frame(user_text):
+            try:
+                frame = self.camera.grab()
+                frame_image = frame.image
+                jpeg_bytes = self._encode_jpeg(frame.image)
+            except Exception as e:
+                print(
+                    f"[session] camera unavailable for this turn ({e}); "
+                    "continuing without image."
+                )
         t_capture = time.perf_counter() - t0
 
         t0 = time.perf_counter()
@@ -197,9 +238,27 @@ class Session:
     def close(self) -> None:
         self.timer_manager.cancel_all()
         try:
-            self.camera.close()
+            if self.camera is not None:
+                self.camera.close()
         except Exception:
             pass
+        try:
+            self.player.close()
+        except Exception:
+            pass
+        try:
+            if self.mcp is not None:
+                self.mcp.stop()
+        except Exception:
+            pass
+
+    def _should_attach_frame(self, user_text: str) -> bool:
+        policy = self.settings.camera.attach_policy
+        if policy == "always":
+            return True
+        if policy == "never":
+            return False
+        return _looks_visual(user_text)
 
     def _encode_jpeg(self, image_bgr: np.ndarray) -> bytes:
         ok, buf = cv2.imencode(

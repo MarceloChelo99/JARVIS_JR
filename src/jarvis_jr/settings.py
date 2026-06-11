@@ -25,9 +25,10 @@ class AudioSettings:
 @dataclass
 class CameraSettings:
     name_contains: str = "iPhone"
-    width: int = 1280
-    height: int = 720
-    jpeg_quality: int = 85
+    width: int = 640
+    height: int = 360
+    jpeg_quality: int = 80
+    attach_policy: str = "auto"  # "auto" | "always" | "never"
 
 
 @dataclass
@@ -57,6 +58,14 @@ class LLMSettings:
 
 
 @dataclass
+class MCPSettings:
+    # Each entry: {name, command, args?, env?}. Tools are exposed to the LLM
+    # as "<name>_<tool>". Empty list = MCP disabled.
+    servers: list[dict[str, Any]] = field(default_factory=list)
+    call_timeout_s: float = 30.0
+
+
+@dataclass
 class ConfirmationSettings:
     require_for: list[str] = field(default_factory=list)
     yes_words: list[str] = field(default_factory=list)
@@ -77,6 +86,7 @@ class Settings:
     stt: STTSettings = field(default_factory=STTSettings)
     tts: TTSSettings = field(default_factory=TTSSettings)
     llm: LLMSettings = field(default_factory=LLMSettings)
+    mcp: MCPSettings = field(default_factory=MCPSettings)
     confirmation: ConfirmationSettings = field(default_factory=ConfirmationSettings)
     calendar: CalendarSettings = field(default_factory=CalendarSettings)
 
@@ -99,6 +109,7 @@ def load_settings(config_path: Path | str | None = None) -> Settings:
         stt=_build_section(STTSettings, raw.get("stt")),
         tts=_build_section(TTSSettings, raw.get("tts")),
         llm=_build_section(LLMSettings, raw.get("llm")),
+        mcp=_build_section(MCPSettings, raw.get("mcp")),
         confirmation=_build_section(ConfirmationSettings, raw.get("confirmation")),
         calendar=_build_section(CalendarSettings, raw.get("calendar")),
     )

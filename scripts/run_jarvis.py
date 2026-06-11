@@ -31,6 +31,14 @@ def main() -> int:
         help="Override llm.provider for this run.",
     )
     parser.add_argument("--model", help="Override the LLM model ID for this run.")
+    parser.add_argument(
+        "--no-vision",
+        action="store_true",
+        help=(
+            "Don't open the camera and never attach frames to the LLM. "
+            "Skips vision prefill entirely — much faster turns for text-style chat."
+        ),
+    )
     args = parser.parse_args()
 
     settings = load_settings()
@@ -42,6 +50,8 @@ def main() -> int:
             settings.llm.model = per_provider["model"]
     if args.model:
         settings.llm.model = args.model
+    if args.no_vision:
+        settings.camera.attach_policy = "never"
 
     session = Session(settings)
     print("\nJARVIS Jr. is ready. Hold SPACE to talk. Ctrl+C to quit.\n")

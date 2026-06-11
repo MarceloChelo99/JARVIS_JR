@@ -22,6 +22,9 @@ dependencies = [
     "tzlocal>=5.2",
     "google-genai>=2.5.0",
     "openai>=2.37.0",
+    "ddgs>=9.0.0",
+    "trafilatura>=2.0.0",
+    "mcp>=1.0.0",
 ]
 
 [dependency-groups]
