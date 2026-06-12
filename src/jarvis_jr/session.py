@@ -116,11 +116,26 @@ class Session:
             print(f"[session] {e}")
             print("[session] Continuing without calendar tools.")
 
+        patterns = self.settings.tools.active_patterns()
+
+        # Only start MCP servers whose tools (exposed as "<name>_*") could
+        # pass the profile filter — no point paying startup cost otherwise.
         self.mcp: MCPManager | None = None
-        if self.settings.mcp.servers:
-            print(f"[session] starting {len(self.settings.mcp.servers)} MCP server(s)…")
+        from fnmatch import fnmatch
+
+        wanted = [
+            srv
+            for srv in self.settings.mcp.servers
+            if any(
+                fnmatch(f"{srv['name']}_x", pat) or pat.startswith(srv["name"])
+                or pat == "*"
+                for pat in patterns
+            )
+        ]
+        if wanted:
+            print(f"[session] starting {len(wanted)} MCP server(s)…")
             self.mcp = MCPManager(
-                servers=self.settings.mcp.servers,
+                servers=wanted,
                 call_timeout_s=self.settings.mcp.call_timeout_s,
             )
             self.mcp.start()
@@ -129,7 +144,15 @@ class Session:
         self._last_ttfa: float | None = None
         self.timer_manager = TimerManager(on_fire=self.speak)
         self.registry = ToolRegistry(
-            calendar=self.calendar, timer_manager=self.timer_manager, mcp=self.mcp
+            calendar=self.calendar,
+            timer_manager=self.timer_manager,
+            mcp=self.mcp,
+            enabled_patterns=patterns,
+        )
+        names = [s["name"] for s in self.registry.schemas]
+        print(
+            f"[session] tool profile '{self.settings.tools.profile}': "
+            f"{len(names)} tool(s): {', '.join(names)}"
         )
 
         self.confirmer = VoiceConfirmer(

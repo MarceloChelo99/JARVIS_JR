@@ -45,21 +45,51 @@ llm:
     model: "google/gemma-4-26b-a4b-qat"   # MoE: 26B total / ~4B active — faster than dense 12b, better quality
     base_url: "http://192.168.1.179:1234"
 
+# Tool profiles: which tools the LLM sees. Small local models get confused
+# past ~15 tools, so keep the everyday voice set lean. Patterns use fnmatch
+# ("edgar_*" = all EDGAR tools, "*" = everything). Switch per run with
+# `run_jarvis.py --profile desk`.
+tools:
+  profile: "voice"
+  profiles:
+    voice:
+      - "set_timer"
+      - "create_event"
+      - "list_events"
+      - "web_search"
+      - "web_news"
+      - "fetch_page"
+      - "remember"
+      - "recall"
+      - "open_app"
+      - "control_music"
+      - "set_volume"
+    desk:
+      - "*"
+
 # MCP (Model Context Protocol) servers. Each server's tools are auto-discovered
 # and exposed to the LLM as "<name>_<tool>". Most published servers run via
 # npx (Node) or uvx (Python) — they're downloaded on first launch.
 # Add write-capable tools to confirmation.require_for below!
 mcp:
   call_timeout_s: 30.0
-  servers: []
-  # Example — read/write files in a sandboxed folder:
-  # servers:
+  servers:
+    # SEC EDGAR filings: company lookup, 10-K/10-Q/8-K retrieval + section
+    # extraction, XBRL financials, insider trading. Tools appear as edgar_*.
+    # NOTE: filing sections are long — load a 32K+ context preset in LM Studio
+    # for filing analysis sessions.
+    - name: "edgar"
+      command: "uvx"
+      args: ["sec-edgar-mcp"]
+      env:
+        SEC_EDGAR_USER_AGENT: "Marcelo Castellanos (castellanosmarcelo1@gmail.com)"
+  # More examples:
   #   - name: "files"
   #     command: "npx"
   #     args: ["-y", "@modelcontextprotocol/server-filesystem", "/Users/marcelocastellanos/JarvisSandbox"]
 
 confirmation:
-  require_for: ["create_event", "delete_event", "update_event"]
+  require_for: ["create_event", "delete_event", "update_event", "forget"]
   yes_words: ["yes", "yeah", "yep", "yup", "do it", "go ahead", "confirm"]
   no_words: ["no", "nope", "cancel", "stop", "wait", "don't"]
 

@@ -32,6 +32,10 @@ def main() -> int:
     )
     parser.add_argument("--model", help="Override the LLM model ID for this run.")
     parser.add_argument(
+        "--profile",
+        help="Tool profile for this run (e.g. 'voice', 'desk'). See configs/default.yaml.",
+    )
+    parser.add_argument(
         "--no-vision",
         action="store_true",
         help=(
@@ -52,6 +56,8 @@ def main() -> int:
         settings.llm.model = args.model
     if args.no_vision:
         settings.camera.attach_policy = "never"
+    if args.profile:
+        settings.tools.profile = args.profile
 
     session = Session(settings)
     print("\nJARVIS Jr. is ready. Hold SPACE to talk. Ctrl+C to quit.\n")
