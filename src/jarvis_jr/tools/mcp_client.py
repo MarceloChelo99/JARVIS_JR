@@ -71,17 +71,22 @@ class MCPManager:
         from contextlib import AsyncExitStack
 
         from mcp import ClientSession, StdioServerParameters
-        from mcp.client.stdio import stdio_client
+        from mcp.client.stdio import get_default_environment, stdio_client
 
         self._shutdown = asyncio.Event()
         async with AsyncExitStack() as stack:
             for cfg in self._configs:
                 name = cfg["name"]
                 try:
+                    # Merge per-server env on top of the defaults (PATH etc.) —
+                    # passing only the extras would break launchers like uvx/npx.
+                    env = None
+                    if cfg.get("env"):
+                        env = {**get_default_environment(), **cfg["env"]}
                     params = StdioServerParameters(
                         command=cfg["command"],
                         args=cfg.get("args", []),
-                        env=cfg.get("env") or None,
+                        env=env,
                     )
                     read, write = await stack.enter_async_context(stdio_client(params))
                     session = await stack.enter_async_context(ClientSession(read, write))

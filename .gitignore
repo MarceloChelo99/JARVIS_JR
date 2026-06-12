@@ -37,3 +37,6 @@ notes/autocoder/
 
 # OS
 .DS_Store
+
+# assistant memory store
+data/
