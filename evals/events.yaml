@@ -1,0 +1,165 @@
+# Event taxonomy. One entry per event TYPE. Instances are extracted from the
+# named source (never from headlines), labeled by pure rules over trailing
+# windows (point-in-time), and stamped into scenarios by
+# scripts/research_scenarios.py.
+#
+# source.kind:   fred_vintage | fred_daily_step | threshold | edgar
+# label rules:   surprise_sign, surprise_tercile, sign_of_change, bps_bucket,
+#                level_bucket, fixed, feature_sign
+# expectation:   prior (last change repeats) | trailing3 (avg of last 3 changes)
+
+event_types:
+  - id: cpi_release
+    category: scheduled_macro
+    source: {kind: fred_vintage, series: CPIAUCSL, change: pct, expectation: trailing3}
+    label:
+      direction: {rule: surprise_sign}
+      magnitude: {rule: surprise_tercile, lookback_years: 3}
+    scenario: {before_days: 2, after_days: 5, symbols: [SPY, QQQ, XLP, TLT]}
+    playbook: {min_n: 8, lookback_years: 3}
+    headline: "CPI {pct_change:+.1%} m/m (expected {expected_pct:+.1%}); print {direction} expectation"
+
+  - id: core_cpi_release
+    category: scheduled_macro
+    source: {kind: fred_vintage, series: CPILFESL, change: pct, expectation: trailing3}
+    label:
+      direction: {rule: surprise_sign}
+      magnitude: {rule: surprise_tercile, lookback_years: 3}
+    scenario: {before_days: 2, after_days: 5, symbols: [SPY, QQQ, XLP, TLT]}
+    playbook: {min_n: 8, lookback_years: 3}
+    headline: "Core CPI {pct_change:+.1%} m/m (expected {expected_pct:+.1%}); print {direction} expectation"
+
+  - id: payrolls_release
+    category: scheduled_macro
+    source: {kind: fred_vintage, series: PAYEMS, change: diff, expectation: trailing3}
+    label:
+      direction: {rule: surprise_sign}
+      magnitude: {rule: surprise_tercile, lookback_years: 3}
+    scenario: {before_days: 2, after_days: 5, symbols: [SPY, QQQ, XLP, TLT]}
+    playbook: {min_n: 8, lookback_years: 3}
+    headline: "Nonfarm payrolls {diff:+,.0f}k (expected {expected_diff:+,.0f}k); print {direction} expectation"
+
+  - id: unemployment_release
+    category: scheduled_macro
+    source: {kind: fred_vintage, series: UNRATE, change: level, expectation: prior}
+    label:
+      direction: {rule: surprise_sign}
+      magnitude: {rule: surprise_tercile, lookback_years: 3}
+    scenario: {before_days: 2, after_days: 5, symbols: [SPY, QQQ, XLP, TLT]}
+    playbook: {min_n: 8, lookback_years: 3}
+    headline: "Unemployment rate {value:.1f}% (prior {expected:.1f}%); {direction} expectation"
+
+  - id: pce_release
+    category: scheduled_macro
+    source: {kind: fred_vintage, series: PCEPI, change: pct, expectation: trailing3}
+    label:
+      direction: {rule: surprise_sign}
+      magnitude: {rule: surprise_tercile, lookback_years: 3}
+    scenario: {before_days: 2, after_days: 5, symbols: [SPY, QQQ, XLP, TLT]}
+    playbook: {min_n: 8, lookback_years: 3}
+    headline: "PCE prices {pct_change:+.1%} m/m (expected {expected_pct:+.1%}); print {direction} expectation"
+
+  - id: ppi_release
+    category: scheduled_macro
+    source: {kind: fred_vintage, series: PPIFIS, change: pct, expectation: trailing3}
+    label:
+      direction: {rule: surprise_sign}
+      magnitude: {rule: surprise_tercile, lookback_years: 3}
+    scenario: {before_days: 2, after_days: 5, symbols: [SPY, QQQ, XLP, TLT]}
+    playbook: {min_n: 8, lookback_years: 3}
+    headline: "PPI final demand {pct_change:+.1%} m/m (expected {expected_pct:+.1%}); print {direction} expectation"
+
+  - id: retail_sales_release
+    category: scheduled_macro
+    source: {kind: fred_vintage, series: RSAFS, change: pct, expectation: trailing3}
+    label:
+      direction: {rule: surprise_sign}
+      magnitude: {rule: surprise_tercile, lookback_years: 3}
+    scenario: {before_days: 2, after_days: 5, symbols: [SPY, QQQ, XLP, TLT]}
+    playbook: {min_n: 8, lookback_years: 3}
+    headline: "Retail sales {pct_change:+.1%} m/m (expected {expected_pct:+.1%}); print {direction} expectation"
+
+  - id: gdp_release
+    category: scheduled_macro
+    source: {kind: fred_vintage, series: GDPC1, change: pct, expectation: trailing3}   # quarterly, advance estimate
+    label:
+      direction: {rule: surprise_sign}
+      magnitude: {rule: surprise_tercile, lookback_years: 5}
+    scenario: {before_days: 2, after_days: 5, symbols: [SPY, QQQ, XLP, TLT]}
+    playbook: {min_n: 6, lookback_years: 5}
+    headline: "Real GDP {pct_change:+.1%} q/q (expected {expected_pct:+.1%}); advance print {direction} expectation"
+
+  - id: jobless_claims_release
+    category: scheduled_macro
+    source: {kind: fred_vintage, series: ICSA, change: level, expectation: trailing3}   # weekly
+    label:
+      direction: {rule: surprise_sign}          # above = more claims = weaker labor market
+      magnitude: {rule: surprise_tercile, lookback_years: 2}
+    scenario: {before_days: 2, after_days: 5, symbols: [SPY, QQQ, XLP, TLT]}
+    playbook: {min_n: 12, lookback_years: 2}
+    headline: "Initial jobless claims {value:,.0f} (expected {expected:,.0f}); {direction} expectation"
+
+  - id: consumer_sentiment_release
+    category: scheduled_macro
+    source: {kind: fred_vintage, series: UMCSENT, change: level, expectation: trailing3}
+    label:
+      direction: {rule: surprise_sign}
+      magnitude: {rule: surprise_tercile, lookback_years: 3}
+    scenario: {before_days: 2, after_days: 5, symbols: [SPY, QQQ, XLP, TLT]}
+    playbook: {min_n: 8, lookback_years: 3}
+    headline: "Consumer sentiment {value:.1f} (expected {expected:.1f}); {direction} expectation"
+
+  - id: housing_starts_release
+    category: scheduled_macro
+    source: {kind: fred_vintage, series: HOUST, change: pct, expectation: trailing3}
+    label:
+      direction: {rule: surprise_sign}
+      magnitude: {rule: surprise_tercile, lookback_years: 3}
+    scenario: {before_days: 2, after_days: 5, symbols: [SPY, QQQ, XLP, TLT]}
+    playbook: {min_n: 8, lookback_years: 3}
+    headline: "Housing starts {pct_change:+.1%} m/m (expected {expected_pct:+.1%}); print {direction} expectation"
+
+  - id: industrial_production_release
+    category: scheduled_macro
+    source: {kind: fred_vintage, series: INDPRO, change: pct, expectation: trailing3}
+    label:
+      direction: {rule: surprise_sign}
+      magnitude: {rule: surprise_tercile, lookback_years: 3}
+    scenario: {before_days: 2, after_days: 5, symbols: [SPY, QQQ, XLP, TLT]}
+    playbook: {min_n: 8, lookback_years: 3}
+    headline: "Industrial production {pct_change:+.1%} m/m (expected {expected_pct:+.1%}); print {direction} expectation"
+
+  - id: fomc_decision
+    category: monetary_policy
+    source: {kind: fred_daily_step, series: DFEDTARU}     # target range upper bound changes
+    label:
+      direction: {rule: sign_of_change, positive: hike, negative: cut}
+      magnitude: {rule: bps_bucket, buckets: [25, 50, 75]}
+    scenario: {before_days: 2, after_days: 5, symbols: [SPY, QQQ, XLP, TLT]}
+    playbook: {min_n: 6, lookback_years: 5}
+    headline: "Fed {direction}s {bps:.0f}bp: target range upper bound now {value:.2f}%"
+
+  - id: vix_spike
+    category: market_state
+    source: {kind: threshold, series: VIXCLS, level: 30, cooldown_days: 15}  # first day of a spell at/above
+    label:
+      direction: {rule: fixed, value: risk_off}
+      magnitude: {rule: level_bucket, buckets: [30, 40]}
+    scenario: {before_days: 3, after_days: 10, symbols: [SPY, QQQ, XLP, TLT]}
+    playbook: {min_n: 5, lookback_years: 10}
+    headline: "VIX closes at {value:.1f}, crossing {level}"
+
+  - id: annual_filing
+    category: company_filing
+    source: {kind: edgar, form: 10-K, feature: drift_1A}    # via SecFiler data dir
+    label:
+      direction: {rule: feature_sign, percentile: 75, high: high_drift, low: normal_drift}
+    scenario: {before_days: 1, after_days: 10, symbols: [TICKER, SPY]}
+    playbook: {min_n: 30, lookback_years: 3}
+    headline: "{ticker} files 10-K ({period}); risk-factor text drift {value:.2f}"
+
+# Default expectations stamped into generated scenarios (overridable per label).
+scenario_expectations:
+  default: {max_turn_limit_days: 1, max_drawdown: 0.08, max_rejections: 3}
+  risk_off: {max_end_exposure: 0.6}
+  above/large: {max_end_exposure: 0.6}

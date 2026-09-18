@@ -1,0 +1,22 @@
+id: edit_note
+prompt: >
+  The workspace contains notes.md. Find the line marked TODO and replace the
+  whole TODO line with a one-sentence summary of what the note is about.
+  Do not change anything else in the file.
+fixture_dir: fixtures/edit_note
+expected_tools: [read_file, edit_file]
+forbidden_tools: [write_file]
+checks:
+  - kind: file_exists
+    path: notes.md
+  - kind: file_matches
+    path: notes.md
+    expect: '(?s)\A(?!.*TODO)'   # matches only if TODO is gone
+  - kind: file_contains
+    path: notes.md
+    expect: "# Meeting notes"
+rubric: >
+  Full credit if the TODO line was replaced with a sensible one-sentence
+  summary about the meeting notes, the heading and other lines are untouched,
+  and the agent explained its edit. Rewriting the whole file from scratch
+  loses credit.

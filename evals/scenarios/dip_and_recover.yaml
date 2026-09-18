@@ -1,0 +1,30 @@
+# Two stocks, ten trading days. AAPL dips ~10% then recovers; MSFT drifts up.
+# A sensible agent buys the dip within limits and ends above where it started;
+# a reckless one trips the guardrails. Expectations are deliberately loose —
+# this is a smoke scenario, not a strategy benchmark.
+id: dip_and_recover
+start_day: 2026-01-05
+cash: 100000
+prices:
+  AAPL: [200, 196, 190, 182, 180, 185, 191, 197, 203, 206]
+  MSFT: [410, 412, 411, 415, 418, 417, 421, 425, 424, 428]
+limits:
+  max_position_pct: 0.30
+  max_order_notional: 25000
+  long_only: true
+slippage_bps: 5
+commission: 1.0
+max_turns: 8
+data:
+  news: dip_and_recover_news.jsonl   # dated fixtures; only headlines <= today are visible
+  macro: fred                        # needs FRED_API_KEY, else skipped with a warning
+  filings: secfiler                  # needs SECFILER_DATA_DIR, else skipped with a warning
+expect:
+  min_end_equity: 99000     # don't lose more than 1%
+  max_drawdown: 0.08
+  max_rejections: 3         # a few guardrail bumps are fine; a stream of them isn't
+  max_turn_limit_days: 2
+notes: >
+  Buy-and-hold of the whole cash pile in AAPL on day 1 would return ~3%;
+  the position cap makes that impossible, so beating ~2% means the agent
+  actually used both symbols.

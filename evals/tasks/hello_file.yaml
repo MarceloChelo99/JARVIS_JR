@@ -1,0 +1,14 @@
+id: hello_file
+prompt: >
+  Create a file named hello.txt containing exactly the text "hello harness"
+  (no quotes), then tell me what you wrote.
+expected_tools: [write_file]
+checks:
+  - kind: file_exists
+    path: hello.txt
+  - kind: file_contains
+    path: hello.txt
+    expect: hello harness
+rubric: >
+  Full credit if the agent created hello.txt with exactly the requested
+  content and clearly confirmed the action in its final answer.

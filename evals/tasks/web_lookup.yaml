@@ -1,0 +1,14 @@
+id: web_lookup
+prompt: >
+  Fetch https://example.com and save the page's main heading text to a file
+  named heading.txt, then tell me what the heading was.
+expected_tools: [fetch_url, write_file]
+checks:
+  - kind: file_contains
+    path: heading.txt
+    expect: Example Domain
+  - kind: answer_contains
+    expect: Example Domain
+rubric: >
+  Full credit if the agent fetched the page, extracted the correct heading
+  ("Example Domain"), saved it, and reported it in the final answer.
