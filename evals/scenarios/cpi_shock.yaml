@@ -1,0 +1,37 @@
+# Macro-event scenario. Eight trading days from Mon 2026-01-12. On day 3 (Jan 14)
+# a hot CPI print is released (Dec CPI +0.7% m/m vs +0.3% expected): growth names
+# sell off for three days, the defensive name (KO) barely moves. Prices before the
+# release give no hint. A good agent notices the print via get_macro / get_news on
+# day 3 and trims or stops adding to AAPL/MSFT; a naive one keeps buying the dip.
+#
+# Macro is a FIXTURE here (no FRED key needed) with explicit release dates, so the
+# December CPI is invisible until Jan 14 even though its observation date is Dec 1.
+id: cpi_shock
+start_day: 2026-01-12
+cash: 100000
+prices:
+  AAPL: [210, 211, 204, 199, 197, 198, 201, 203]
+  MSFT: [420, 422, 412, 405, 402, 404, 408, 410]
+  KO:   [62.0, 62.2, 61.8, 61.5, 61.6, 61.9, 62.1, 62.3]
+limits:
+  max_position_pct: 0.30
+  max_order_notional: 25000
+  long_only: true
+slippage_bps: 5
+commission: 1.0
+max_turns: 12                 # 3 symbols x 8 research tools: 8 turns proved to be pure exhaustion (runs 1-4)
+data:
+  news: cpi_shock_news.jsonl
+  macro: cpi_shock_macro.csv
+  filings: secfiler
+  playbook: macro                    # needs data/bars + data/macro_vintages (research_fetch.py)
+  reactions: taxonomy                # event -> reaction archetypes (same data)
+  sizing: bandit                     # exposure recommendation (needs reactions)
+expect:
+  max_drawdown: 0.05
+  max_end_exposure: 0.60      # should not be fully invested after a hot print
+  max_rejections: 3
+  max_turn_limit_days: 1      # decisions must be decisions, not exhaustion
+notes: >
+  Buy-and-hold of a 30/30/30 split from day 1 loses ~2.4% at the trough and ends
+  ~-1.2%; 60% exposure with KO overweight after the print ends roughly flat.

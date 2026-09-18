@@ -1,0 +1,16 @@
+# Lives outside evals/tasks/ so the default suite does not require Gmail creds.
+# Run with: uv run python scripts/run_evals.py evals/tasks_gmail  (GMAIL_* set in .env)
+id: inbox_digest
+prompt: >
+  List my 5 most recent emails, then write a file digest.md containing one
+  markdown bullet per email with its sender and subject. Finally, tell me
+  which of them looks most important and why.
+expected_tools: [list_recent_emails, write_file]
+checks:
+  - kind: file_exists
+    path: digest.md
+rubric: >
+  Full credit if digest.md has one bullet per listed email with real senders
+  and subjects (not invented ones), and the final answer names one email as
+  most important with a sensible reason grounded in the actual inbox contents.
+max_turns: 8

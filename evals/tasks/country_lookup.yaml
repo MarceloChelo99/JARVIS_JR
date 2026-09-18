@@ -1,0 +1,21 @@
+# Exercises one of the assistant's own tools through the registry shim.
+# Run with: uv run python scripts/run_evals.py --profile evals
+id: country_lookup
+prompt: >
+  What is the ISO 3166-1 alpha-3 code for Peru, and which continent is it on?
+  Use the authoritative lookup tool rather than answering from memory, then
+  save the answer as "CODE, Continent" to a file named peru.txt.
+expected_tools: [lookup_country, write_file]
+forbidden_tools: [web_search, fetch_url, fetch_page]
+checks:
+  - kind: file_contains
+    path: peru.txt
+    expect: PER
+  - kind: file_contains
+    path: peru.txt
+    expect: South America
+  - kind: answer_contains
+    expect: PER
+rubric: >
+  Full credit if the agent used lookup_country (not the web, not memory),
+  reported PER and South America, and wrote them to peru.txt.

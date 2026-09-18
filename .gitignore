@@ -22,8 +22,9 @@ venv/
 credentials/*
 !credentials/.gitkeep
 
-# Autocoder per-run logs
+# Autocoder / evals per-run logs
 notes/autocoder/
+notes/evals/
 
 # Caches
 .cache/
@@ -40,3 +41,6 @@ notes/autocoder/
 
 # assistant memory store
 data/
+
+# Generated scenario families are reproducible from data + events.yaml
+evals/scenarios/generated/

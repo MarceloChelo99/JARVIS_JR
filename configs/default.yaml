@@ -66,6 +66,13 @@ tools:
       - "set_volume"
     desk:
       - "*"
+    # Read-only subset for scripts/run_evals.py --profile evals: nothing here
+    # can touch the calendar, memory store, or the Mac.
+    evals:
+      - "lookup_country"
+      - "web_search"
+      - "web_news"
+      - "fetch_page"
 
 # MCP (Model Context Protocol) servers. Each server's tools are auto-discovered
 # and exposed to the LLM as "<name>_<tool>". Most published servers run via
